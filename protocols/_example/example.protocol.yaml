@@ -1,0 +1,23 @@
+# A protocol set someone might offer: two if-then plans and the shape of a wind-down. Importing it offers each piece; the person keeps
+# what they want, and each piece's words are checked as their own are. Nothing here names a condition, a treatment or a medicine.
+pack_id: quiet_evenings_example
+version: 1.0.0
+kind: protocol
+title: Quiet evenings
+author: An example author
+summary: Two small plans for the evening after a long day, and a wind-down that starts itself.
+protocols:
+  - kind: if_then
+    cue: {kind: on_request}
+    if_text: the day ran long and I am still wound up
+    then_text: lights down, one small task I can finish, then stop
+  - kind: contingency
+    cue: {kind: heavy_day_ahead}
+    then_text: a short walk before the first thing, and the phone stays in the other room
+    minutes: 15
+focus_block:
+  minutes: 25
+  done_definition: offer
+decompression:
+  minutes: 45
+  when: heavy_days

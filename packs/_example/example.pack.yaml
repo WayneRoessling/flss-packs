@@ -1,0 +1,21 @@
+# An area pack a person might write: an allotment, with the hours they give it and the beds they weed. It adds areas, measures and
+# names only, so it needs no review to install from a file. Validate it with tools/open_model_check.py before you open a pull request.
+pack_id: allotment_example
+version: 1.0.0
+schema_version: 2
+author: An example author
+offer:
+  title: Allotment
+  summary: The hours you give the allotment each week, and the beds you keep weeded.
+  install: optional
+area:
+  key: allotment_example
+  name: Allotment
+  kind: domain
+  default_posture: maintain
+  default_season: steady
+  sub_areas:
+    - {key: beds, name: Beds, kind: domain, default_posture: maintain, default_season: steady}
+measures:
+  - {key: allotment_example.hours, name: Hours there, kind: cumulative, role: lead, unit: hour, direction: up, cadence: weekly, aggregation: sum}
+  - {key: allotment_example.beds_weeded, name: Beds weeded, kind: level, role: result, unit: count, direction: up, cadence: daily, aggregation: last}

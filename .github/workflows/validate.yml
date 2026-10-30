@@ -1,0 +1,13 @@
+# Validates every contributed file against its schema and the tone rules on every pull request.
+# The checker script lives in FLSS's repository (scripts/open_model_check.py) and is copied here with each release of the schemas.
+name: validate
+on: [pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install jsonschema pyyaml
+      - run: python tools/open_model_check.py packs programmes protocols

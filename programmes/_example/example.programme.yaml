@@ -1,0 +1,13 @@
+# A programme a coach might write for FLSS's Running area: ten weeks of base miles. Importing it makes a draft plan the person approves.
+pack_id: base_miles_example
+version: 1.0.0
+kind: programme
+title: Base miles, ten weeks
+author: An example coach
+summary: A steady base before a spring block, three runs a week.
+area_key: physical_run
+weeks: 10
+sessions_per_week: 3
+measures:
+  - {key: physical_run.distance, generator: cumulative_per_week, per_week: 12, unit: mi}
+  - {key: physical_run.runs, generator: rate_per_week, per_week: 3}

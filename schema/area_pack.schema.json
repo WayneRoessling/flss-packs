@@ -1,0 +1,481 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flss.local/schema/area_pack/2",
+  "title": "FLSS Area Pack (ADR-FLSS-003; CD-FLSS-001 section 4.5, and its H1b revision section 4.8.1 for schema version 2)",
+  "description": "Every section is optional beyond the four required. A version 1 pack stays valid. additionalProperties is false at every level, so a typo fails rather than being ignored.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pack_id", "version", "schema_version", "area"],
+  "properties": {
+    "pack_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "schema_version": {"enum": [1, 2]},
+    "author": {"type": "string", "maxLength": 80, "description": "PLAN-FLSS-006 Phase 2 (CAP-60.4): who wrote the pack, as they chose to be shown; absent for a pack FLSS ships or an anonymous one"},
+    "tier": {"$ref": "#/$defs/tier"},
+    "offer": {
+      "type": "object", "additionalProperties": false, "required": ["title", "summary", "install"],
+      "properties": {
+        "title": {"type": "string", "maxLength": 80},
+        "summary": {"type": "string", "maxLength": 400},
+        "install": {"enum": ["onboarding", "optional"]},
+        "requires": {"type": "array", "items": {"$ref": "#/$defs/slug"}},
+        "excludes": {"type": "array", "items": {"$ref": "#/$defs/slug"}},
+        "posture_choices": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/posture"}}
+      }
+    },
+    "area": {"$ref": "#/$defs/area"},
+    "engine": {
+      "type": "object", "additionalProperties": false, "required": ["engine_id"],
+      "properties": {"engine_id": {"type": "string"}, "version": {"type": "string"}}
+    },
+    "event_types": {"type": "array", "items": {"$ref": "#/$defs/event_type"}},
+    "vocabularies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object", "additionalProperties": false, "required": ["key", "name", "credits"],
+          "properties": {
+            "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,79}$"},
+            "name": {"type": "string", "maxLength": 80},
+            "credits": {"type": "string"}
+          }
+        }
+      }
+    },
+    "measures": {"type": "array", "items": {"$ref": "#/$defs/measure"}},
+    "experiences": {
+      "description": "Experiences the person may choose to watch (CD-FLSS-001 H1b section 4.8.6). Each chosen item becomes one measure made from `measure`, keyed <pack_id>.experience.<key>, with the item's direction and the scale for that direction; nothing is made until it is chosen",
+      "type": "object", "additionalProperties": false, "required": ["items"],
+      "properties": {
+        "choose": {"type": "object", "additionalProperties": false,
+                   "properties": {"max": {"type": "integer", "minimum": 1, "maximum": 5},
+                                  "suggest": {"type": "integer", "minimum": 0, "maximum": 5}}},
+        "measure": {"$ref": "#/$defs/experience_measure"},
+        "scales": {"type": "object", "additionalProperties": false,
+                   "description": "The scale for an item whose higher end is worse (down) or better (up)",
+                   "properties": {"down": {"$ref": "#/$defs/scale"}, "up": {"$ref": "#/$defs/scale"},
+                                  "in_band": {"$ref": "#/$defs/scale"}}},
+        "signs": {"type": "object", "additionalProperties": false,
+                  "description": "Where a rating of an item marked `sign` counts as a sign in the early-signs log (DP-001 P7): at or above `down` for a lower-is-better item, at or below `up` for a higher-is-better one. A count, never a score",
+                  "properties": {"down": {"type": "integer", "minimum": 0, "maximum": 10},
+                                 "up": {"type": "integer", "minimum": 0, "maximum": 10}}},
+        "items": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["key", "name"],
+          "properties": {"key": {"$ref": "#/$defs/slug"}, "name": {"type": "string", "maxLength": 80},
+                         "direction": {"enum": ["up", "down", "in_band"]},
+                         "sign": {"type": "boolean", "description": "Read as one source of early signs, beside the calendar, markers and sleep (DP-001 P7; D-91 point C)"}}}}
+      }
+    },
+    "derivations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false, "required": ["op"],
+        "allOf": [{"if": {"properties": {"op": {"const": "time_allocation"}}},
+                   "then": {"required": ["what"], "not": {"required": ["from"]}},
+                   "else": {"required": ["from"], "not": {"required": ["what"]}}}],
+        "properties": {
+          "from": {"oneOf": [{"type": "string"},
+                             {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string"}}],
+                   "description": "The kind of entry the value is derived from, or several (H2a: any of them)"},
+          "op": {"enum": ["count_records", "sum_items", "max_items", "record_value", "window_spread", "days_since",
+                          "rolling_count", "time_allocation"],
+                 "description": "days_since and rolling_count are by the day (CD-FLSS-002 H2a revision): one value per local day. time_allocation is filled by time_usage from the day timeline, one value per local day, and names no `from` (CD-FLSS-002 H2b revision)"},
+          "what": {"enum": ["actual", "meetings", "focus", "interruptions", "unplanned", "interruptions_all"],
+                   "description": "time_allocation only: what a day's value holds, for the measure's own area (CD-FLSS-028 section 4.7)"},
+          "group_by": {"enum": ["item_credit_area", "item_key", "event_credit_area"],
+                       "description": "event_credit_area (PLAN-FLSS-004 WP-C4): with for_each_sub_area, an entry counts only for the measure of the sub-area it is credited to"},
+          "expr": {"type": "string", "maxLength": 200},
+          "where": {"type": "string", "maxLength": 200},
+          "window": {"type": "integer", "minimum": 1, "maximum": 60},
+          "min_records": {"type": "integer", "minimum": 2, "maximum": 60},
+          "algorithm_id": {"type": "string"},
+          "algorithm_version": {"type": "integer"}
+        }
+      }
+    },
+    "settings": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false, "required": ["key", "default"],
+      "properties": {"key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"},
+                     "type": {"type": "string"}, "default": {}, "bounds": {"type": "object"}}}},
+    "invariants": {"type": "array", "items": {"$ref": "#/$defs/invariant"}},
+    "stop_rules": {"type": "array", "items": {"$ref": "#/$defs/stop_rule"}},
+    "watches": {"type": "array", "items": {"$ref": "#/$defs/watch"}},
+    "capacity_rules": {"type": "array", "items": {"$ref": "#/$defs/data_block"}},
+    "reminders": {"type": "array", "items": {"$ref": "#/$defs/reminder"}},
+    "feeds": {"type": "array", "items": {"$ref": "#/$defs/feed"}},
+    "prompts": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false, "required": ["key", "text", "for"],
+      "properties": {"key": {"$ref": "#/$defs/slug"}, "text": {"type": "string", "maxLength": 200},
+                     "for": {"enum": ["vision", "values", "outcome_statement", "outcome_why"]}}}},
+    "drilldown_fields": {"type": "array", "items": {"type": "string"}},
+    "plan_templates": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["key", "name"],
+        "properties": {
+          "key": {"type": "string"}, "name": {"type": "string"},
+          "weeks": {"type": "integer", "minimum": 1, "maximum": 104},
+          "sessions_per_week": {"type": "integer", "minimum": 1, "maximum": 14},
+          "planned_measure": {"type": "string"}
+        }
+      }
+    },
+    "free_text_fields": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["table", "column", "input_kind"],
+        "properties": {"table": {"type": "string"}, "column": {"type": "string"}, "input_kind": {"type": "string"}}
+      }
+    },
+    "sufficiency_nouns": {"type": "object", "additionalProperties": {"type": "string"}},
+    "unit_words": {"type": "object", "additionalProperties": {"type": "string", "maxLength": 40}},
+    "tools": {
+      "description": "Generic tools a pack in full turns on (CD-FLSS-024): read by coping from the installed packs' documents, never by name; since PLAN-FLSS-004 WP-B2 the list of people (CD-FLSS-030), read by people",
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "focus_block": {"type": "object", "additionalProperties": false,
+                        "properties": {"done_definition": {"enum": ["offer", "always"]},
+                                       "capture_list": {"type": "boolean"}}},
+        "stimulant_watch": {"type": "object", "additionalProperties": false, "required": ["log"],
+                            "properties": {"log": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+                                           "signs": {"type": "array", "items": {"type": "string"}},
+                                           "focus_overrun": {"type": "boolean"}}},
+        "people": {"type": "object", "additionalProperties": false, "required": ["list"],
+                   "description": "PLAN-FLSS-004 WP-B2 (CD-FLSS-030 section 4.1): the pack's area, and every area under it, show the person's list of people as a tab; read by people from the installed packs' documents, never by name",
+                   "properties": {"list": {"const": true}}}
+      }
+    },
+    "episode_context": {
+      "description": "What an Episode's 72-hour context shows beside the calendar's demand (CD-FLSS-003 H2a revision): the measures, by key",
+      "type": "object", "additionalProperties": false, "required": ["measures"],
+      "properties": {"measures": {"type": "array", "maxItems": 5, "items": {"type": "string"}}}
+    },
+    "ledger": {
+      "description": "What this pack adds to the energy ledger (CD-FLSS-016 H2a; CD-FLSS-001 H2a WP-A4): a kind of entry (points each) or a rating (points per unit) on the load or recovery side, or a measure read against the person's own line (below adds load, above adds recovery, per unit, at most max_points). The tags are the ledger's own list.",
+      "type": "array", "maxItems": 20, "items": {
+        "type": "object", "additionalProperties": false, "required": ["source", "tag"],
+        "properties": {
+          "source": {"type": "object", "additionalProperties": false, "required": ["kind", "key"],
+                     "properties": {"kind": {"enum": ["event_type", "measure"]},
+                                    "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z0-9_.]+$"}}},
+          "tag": {"enum": ["sensory", "social", "line", "activity", "other", "recovery_day", "rest"]},
+          "side": {"enum": ["load", "recovery"]},
+          "points": {"type": "number", "exclusiveMinimum": 0, "maximum": 10},
+          "points_per_unit": {"type": "number", "exclusiveMinimum": 0, "maximum": 10},
+          "line": {"type": "object", "additionalProperties": false, "required": ["setting", "fallback"],
+                   "properties": {"setting": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"},
+                                  "fallback": {"type": "number"}}},
+          "per": {"type": "number", "exclusiveMinimum": 0},
+          "max_points": {"type": "number", "exclusiveMinimum": 0, "maximum": 10}
+        },
+        "oneOf": [
+          {"required": ["side", "points"], "not": {"anyOf": [{"required": ["line"]}, {"required": ["points_per_unit"]}]}},
+          {"required": ["side", "points_per_unit"], "not": {"anyOf": [{"required": ["line"]}, {"required": ["points"]}]}},
+          {"required": ["line", "per", "max_points"],
+           "not": {"anyOf": [{"required": ["side"]}, {"required": ["points"]}, {"required": ["points_per_unit"]}]}}
+        ]
+      }
+    },
+    "routines": {
+      "description": "Usual windows learned from the person's own record (CD-FLSS-026 §4.3; CD-FLSS-001 H2a revision WP-A5): a kind of entry whose start and end make a routine (the night: bedtime and wake time), and, optionally, two of its attributes whose difference is the usual settle. Installs nothing: context_awareness reads it from the installed pack's document.",
+      "type": "array", "maxItems": 5, "items": {
+        "type": "object", "additionalProperties": false, "required": ["key", "event_type", "start_words", "end_words"],
+        "properties": {
+          "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"},
+          "event_type": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z0-9_.]+$"},
+          "start_words": {"type": "string", "minLength": 1, "maxLength": 60},
+          "end_words": {"type": "string", "minLength": 1, "maxLength": 60},
+          "settle": {"type": "object", "additionalProperties": false, "required": ["from", "less"],
+                     "properties": {"from": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+                                    "less": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}}
+        }
+      }
+    },
+    "projections": {
+      "description": "Behaviour projections (CD-FLSS-008 H2a revision WP-A5): a guardrail of the pack's whose next value the routine's usual end projects, as if this continues, and the words for what is projected. Installs nothing: projection reads it from the installed pack's document.",
+      "type": "array", "maxItems": 5, "items": {
+        "type": "object", "additionalProperties": false, "required": ["key", "invariant", "routine", "what"],
+        "properties": {
+          "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"},
+          "invariant": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "routine": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"},
+          "what": {"type": "string", "minLength": 1, "maxLength": 60}
+        }
+      }
+    },
+    "time_defaults": {
+      "description": "PLAN-FLSS-004 WP-B1 (CD-FLSS-001 H2b revision): the activity tracker's categories, and the calendar's busy time no rule places, that count to this pack's area unless the person has a rule of their own (CD-FLSS-028 section 4.1)",
+      "type": "object", "additionalProperties": false,
+      "properties": {"categories": {"type": "array", "maxItems": 10,
+                                    "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"}},
+                     "calendar_busy": {"type": "boolean"}}},
+    "retires": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "key"],
+      "properties": {"kind": {"enum": ["area", "measure", "event_type"]}, "key": {"type": "string"}}}}
+  },
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"},
+    "tier": {"type": "integer", "minimum": 0, "maximum": 4},
+    "posture": {"enum": ["perform", "maintain", "restore", "observe"]},
+    "rule": {
+      "type": "object", "additionalProperties": false, "required": ["min_points", "min_span_days"],
+      "properties": {"min_points": {"type": "integer", "minimum": 1, "maximum": 60},
+                     "min_span_days": {"type": "integer", "minimum": 0, "maximum": 365}}
+    },
+    "data_block": {
+      "type": "object", "required": ["key"],
+      "properties": {"key": {"$ref": "#/$defs/slug"}}
+    },
+    "setting_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"},
+    "scale": {
+      "type": "object", "additionalProperties": false, "required": ["min", "max", "step"],
+      "properties": {"min": {"type": "number"}, "max": {"type": "number"}, "step": {"type": "number", "exclusiveMinimum": 0},
+                     "labels": {"type": "object", "additionalProperties": false,
+                                "properties": {"min": {"type": "string", "maxLength": 40},
+                                               "max": {"type": "string", "maxLength": 40},
+                                               "points": {"type": "object", "additionalProperties": {"type": "string", "maxLength": 40}}}}}
+    },
+    "experience_measure": {
+      "description": "What every chosen experience's measure is: a measure without its key, name, direction or scale, which each item supplies",
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "role", "unit", "cadence", "aggregation"],
+      "properties": {
+        "kind": {"enum": ["rating"]},
+        "role": {"enum": ["lead", "result", "effect"]},
+        "unit": {"enum": ["score"]},
+        "cadence": {"enum": ["daily"]},
+        "aggregation": {"enum": ["last"]},
+        "band_period": {"enum": ["day"]},
+        "watch": {"enum": ["full", "record"]},
+        "tier": {"$ref": "#/$defs/tier"},
+        "checkin_order": {"type": "integer", "minimum": 1, "maximum": 15,
+                          "description": "The first chosen item's place in the check-in; the others follow in the order chosen"},
+        "sufficiency": {
+          "type": "object", "additionalProperties": false,
+          "properties": {"baseline": {"$ref": "#/$defs/rule"}, "drift": {"$ref": "#/$defs/rule"},
+                         "projection": {"$ref": "#/$defs/rule"}}
+        }
+      }
+    },
+    "number_or_setting": {
+      "description": "A number, or {setting: <key>}: the person's per-account setting, read when the rule is evaluated",
+      "oneOf": [{"type": "number"},
+                {"type": "object", "additionalProperties": false, "required": ["setting"],
+                 "properties": {"setting": {"$ref": "#/$defs/setting_key"}}}]
+    },
+    "invariant": {
+      "description": "A guardrail: a threshold over a rolling window of daily values, on one measure (CD-FLSS-015 sections 3.1, 4.2)",
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "name", "measure", "window_days", "aggregator", "comparator", "threshold"],
+      "properties": {
+        "key": {"$ref": "#/$defs/slug"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "measure": {"type": "string"},
+        "window_days": {"type": "integer", "minimum": 1, "maximum": 90},
+        "min_known": {"type": "integer", "minimum": 1, "maximum": 90},
+        "clear_after_days": {"type": "integer", "minimum": 1, "maximum": 30},
+        "aggregator": {
+          "type": "object", "additionalProperties": false, "required": ["id"],
+          "properties": {
+            "id": {"enum": ["mean", "sum", "min", "max", "latest", "count_below", "count_above", "days_without",
+                            "days_since_last", "trend_drop"]},
+            "params": {"type": "object", "additionalProperties": false,
+                       "properties": {"level": {"$ref": "#/$defs/number_or_setting"},
+                                      "event_type": {"type": "string"},
+                                      "split": {"enum": ["halves"]}}}
+          }
+        },
+        "comparator": {"enum": ["below", "above", "at_least", "at_most"]},
+        "threshold": {"$ref": "#/$defs/number_or_setting"},
+        "suggest": {"type": "object", "description": "A value the screen suggests for a setting the rule reads; never set for the person",
+                    "additionalProperties": {"type": "number"}},
+        "unit_noun": {"type": "string", "maxLength": 40},
+        "tier": {"$ref": "#/$defs/tier"}
+      }
+    },
+    "watch": {
+      "description": "A guardrail over several signals at once, proposed at install and never active until the person confirms it; when `needs` of its signals cross together it offers what `offer` names (CD-FLSS-015; DP-001 P4)",
+      "type": "object", "additionalProperties": false, "required": ["key", "name", "window_days", "needs", "signals"],
+      "properties": {
+        "key": {"$ref": "#/$defs/slug"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "window_days": {"type": "integer", "minimum": 7, "maximum": 90},
+        "needs": {"type": "integer", "minimum": 1, "maximum": 5},
+        "clear_after_days": {"type": "integer", "minimum": 1, "maximum": 30},
+        "offer": {"enum": ["reduced", "none"]},
+        "tier": {"$ref": "#/$defs/tier"},
+        "signals": {"type": "array", "minItems": 1, "maxItems": 5, "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["key", "label", "words", "source", "aggregator", "comparator", "threshold"],
+          "properties": {
+            "key": {"$ref": "#/$defs/slug"},
+            "label": {"type": "string", "minLength": 1, "maxLength": 60},
+            "words": {"type": "string", "minLength": 1, "maxLength": 120,
+                      "description": "How the offer says this signal moved, in the pack's reviewed words"},
+            "source": {"type": "object", "additionalProperties": false, "required": ["kind"],
+                       "properties": {"kind": {"enum": ["markers", "event_type", "measure"]},
+                                      "keys": {"type": "array", "maxItems": 10, "items": {"type": "string"}},
+                                      "rolling_days": {"type": "integer", "minimum": 1, "maximum": 28},
+                                      "min_known_days": {"type": "integer", "minimum": 1, "maximum": 28}}},
+            "aggregator": {"$ref": "#/$defs/invariant/properties/aggregator"},
+            "comparator": {"enum": ["below", "above", "at_least", "at_most"]},
+            "threshold": {"type": "number"},
+            "min_known": {"type": "integer", "minimum": 1, "maximum": 90}
+          }
+        }}
+      }
+    },
+    "stop_rule": {
+      "description": "A stop rule the pack proposes; the person confirms it, and chooses what it pauses (CD-FLSS-015 section 4.4)",
+      "type": "object", "additionalProperties": false, "required": ["key", "invariant", "action"],
+      "properties": {
+        "key": {"$ref": "#/$defs/slug"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "invariant": {"$ref": "#/$defs/slug"},
+        "action": {"enum": ["pause"]},
+        "targets": {"type": "array", "maxItems": 0,
+                    "description": "Always empty in a pack: the person picks the plans at confirmation (O-015-2)"},
+        "resume": {"enum": ["person", "on_clear"]}
+      }
+    },
+    "reminder": {
+      "description": "A pack-default reminder (CD-FLSS-020 section 4.3): a time from settings, repeated exactly as set",
+      "type": "object", "additionalProperties": false, "required": ["key", "at", "repeat", "template"],
+      "properties": {
+        "key": {"$ref": "#/$defs/slug"},
+        "kind": {"enum": ["reminder"]},
+        "at": {
+          "type": "object", "additionalProperties": false, "required": ["setting"],
+          "properties": {
+            "setting": {"$ref": "#/$defs/setting_key"},
+            "offset_minutes": {"oneOf": [
+              {"type": "integer", "minimum": -720, "maximum": 720},
+              {"type": "object", "additionalProperties": false, "required": ["setting_negative"],
+               "properties": {"setting_negative": {"$ref": "#/$defs/setting_key"}}}]}
+          }
+        },
+        "repeat": {"enum": ["daily"]},
+        "count": {"type": "integer", "minimum": 1, "maximum": 10},
+        "person_may": {"type": "array", "items": {"enum": ["move", "turn_off"]}},
+        "template": {
+          "type": "object", "additionalProperties": false, "required": ["id", "text"],
+          "properties": {
+            "id": {"type": "string", "pattern": "^[a-z][a-z0-9_.]*@\\d+\\.\\d+\\.\\d+$"},
+            "text": {"type": "string", "maxLength": 200},
+            "label": {"type": "string", "maxLength": 60}
+          }
+        }
+      }
+    },
+    "feed": {
+      "description": "A default field mapping from an importer's record kind onto this pack's event type or measure (CD-FLSS-004 H1b section 4.8)",
+      "type": "object", "additionalProperties": false, "required": ["key", "source_family", "record_kind", "target"],
+      "properties": {
+        "key": {"$ref": "#/$defs/slug"},
+        "source_family": {"enum": ["garmin", "apple_health", "activitywatch", "bank_file", "gpx"]},
+        "record_kind": {"enum": ["night", "daily", "activity"]},
+        "filter": {"type": "object"},
+        "target": {
+          "type": "object", "additionalProperties": false, "minProperties": 1, "maxProperties": 1,
+          "properties": {"event_type": {"type": "string"}, "measure": {"type": "string"},
+                         "measure_template": {"type": "string"}}
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false, "required": ["from"],
+            "properties": {"from": {"type": "string"}, "unit": {"type": "string"}}
+          }
+        },
+        "yields_to": {
+          "type": "object", "additionalProperties": {"$ref": "#/$defs/slug"},
+          "description": "A kind of activity this feed leaves to another pack while that pack is installed, as {kind: pack_id} (DP-003 section 4.5)"
+        }
+      }
+    },
+    "area": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "name", "kind", "default_posture", "default_season"],
+      "properties": {
+        "key": {"$ref": "#/$defs/slug"},
+        "name": {"type": "string", "maxLength": 80},
+        "kind": {"enum": ["integrating", "domain", "lens", "support"]},
+        "default_posture": {"$ref": "#/$defs/posture"},
+        "default_season": {"enum": ["focus", "steady", "parked"]},
+        "tier": {"$ref": "#/$defs/tier"},
+        "sub_areas": {"type": "array", "items": {"$ref": "#/$defs/area"}}
+      }
+    },
+    "event_type": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "name", "record_shape", "credits", "attribute_schema"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z][a-z0-9_.]{0,79}$"},
+        "name": {"type": "string", "maxLength": 80},
+        "record_shape": {"enum": ["envelope", "set_log"]},
+        "credits": {"type": "array", "items": {"type": "string"}},
+        "attribute_schema": {"type": "object"},
+        "tier": {"$ref": "#/$defs/tier"},
+        "one_tap": {"type": "boolean"},
+        "never_triggers": {"type": "boolean"},
+        "episode": {"type": "boolean", "description": "An Episode kind of entry (CAP-07.3; CD-FLSS-003 H2a revision)"},
+        "mode_hint": {"enum": ["protected", "reduced", null]},
+        "plan_kind": {"enum": ["actual", "planned", "either"]},
+        "note": {"enum": ["none", "optional"]},
+        "breadcrumb_words": {"type": "integer", "minimum": 0, "maximum": 4},
+        "one_per_local_date": {"type": "boolean"},
+        "checkin_entry": {"type": "object", "additionalProperties": false, "required": ["attribute", "prompt"],
+                          "properties": {"attribute": {"type": "string"}, "prompt": {"type": "string", "maxLength": 120}}}
+      }
+    },
+    "measure": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "role", "unit", "direction", "cadence", "aggregation"],
+      "properties": {
+        "key": {"type": "string"},
+        "template": {"type": "string"},
+        "name": {"type": "string", "maxLength": 80},
+        "area": {"type": "string"},
+        "for_each_sub_area": {"oneOf": [
+          {"type": "boolean"},
+          {"type": "object", "additionalProperties": false, "required": ["depth"],
+           "properties": {"depth": {"type": "integer", "minimum": 1, "maximum": 3}},
+           "description": "One measure per area this many levels beneath the root (DP-003 section 3.5)"}]},
+        "on_mark": {"type": "string"},
+        "derivation": {"type": "string"},
+        "kind": {"enum": ["cumulative", "level", "rate", "milestone", "allocation", "rating"]},
+        "role": {"enum": ["lead", "result", "effect"]},
+        "unit": {"enum": ["session", "kg", "count", "m", "s_per_km", "minute", "hour", "day", "bpm", "ms", "percent",
+                          "score", "times", "days", "money", "months"]},
+        "direction": {"enum": ["up", "down", "in_band"]},
+        "cadence": {"enum": ["per_event", "daily", "weekly"]},
+        "aggregation": {"enum": ["count", "sum", "max", "mean", "last"]},
+        "band_period": {"enum": ["observation", "day", "week"]},
+        "tier": {"$ref": "#/$defs/tier"},
+        "scale": {
+          "type": "object", "additionalProperties": false, "required": ["min", "max", "step"],
+          "properties": {"min": {"type": "number"}, "max": {"type": "number"}, "step": {"type": "number", "exclusiveMinimum": 0},
+                         "labels": {"type": "object", "additionalProperties": false,
+                                    "properties": {"min": {"type": "string", "maxLength": 40},
+                                                   "max": {"type": "string", "maxLength": 40},
+                                                   "points": {"type": "object", "additionalProperties": {"type": "string", "maxLength": 40}}}}}
+        },
+        "rate": {"type": "object", "additionalProperties": false, "required": ["period", "basis"],
+                 "properties": {"period": {"enum": ["day", "week", "month"]}, "basis": {"enum": ["events", "days"]}}},
+        "checkin_order": {"type": "integer", "minimum": 1, "maximum": 20},
+        "watch": {"enum": ["full", "record"]},
+        "numbers_hidden": {"type": "boolean",
+                           "description": "Installed with the person's Hide numbers switch already on (CAP-38.2; D-20c numbers-free mode); the person turns it off"},
+        "target_gate": {"enum": ["screening"],
+                        "description": "No outcome or plan may set a target on this measure until the one screening question has been answered (D-20c; CD-FLSS-012 H3 revision)"},
+        "sufficiency": {
+          "type": "object", "additionalProperties": false,
+          "properties": {"baseline": {"$ref": "#/$defs/rule"}, "drift": {"$ref": "#/$defs/rule"},
+                         "projection": {"$ref": "#/$defs/rule"}}
+        }
+      },
+      "oneOf": [{"required": ["key"]}, {"required": ["template"]}]
+    }
+  }
+}

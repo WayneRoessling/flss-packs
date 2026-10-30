@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flss.local/schema/protocol/1",
+  "title": "FLSS Protocol set (PLAN-FLSS-006 Phase 2; CAP-60.3, 60.5; A-6-12, A-6-13)",
+  "description": "A set of if-then plans, Plan B's and ways out, with the shape of a focus block and a decompression window, which a clinician, a coach or a person offers. Importing it offers each piece for the person to keep or drop; nothing enters their record unaccepted, and each piece's words are screened as the person's own are. A shared technique is one of these with one protocol. No figure of anyone's record, no entry, no name of a person. additionalProperties is false at every level.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pack_id", "version", "kind", "title", "protocols"],
+  "properties": {
+    "pack_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "kind": {"const": "protocol"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 120},
+    "author": {"type": "string", "maxLength": 80},
+    "summary": {"type": "string", "maxLength": 400},
+    "protocols": {
+      "type": "array", "minItems": 1, "maxItems": 40,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["then_text"],
+        "properties": {
+          "kind": {"enum": ["if_then", "contingency", "way_out"]},
+          "cue": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "kind": {"enum": ["after_entry", "heavy_day_ahead", "block_overrun", "on_request"]},
+              "event_type_keys": {"type": "array", "maxItems": 12, "items": {"type": "string", "maxLength": 120}}
+            }
+          },
+          "if_text": {"type": "string", "maxLength": 200},
+          "then_text": {"type": "string", "minLength": 1, "maxLength": 500},
+          "minutes": {"type": "integer", "minimum": 1, "maximum": 240}
+        }
+      }
+    },
+    "focus_block": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "minutes": {"type": "integer", "minimum": 5, "maximum": 240},
+        "done_definition": {"enum": ["offer", "always"]},
+        "prewarning_minutes": {"type": "integer", "minimum": 1, "maximum": 30}
+      }
+    },
+    "decompression": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "minutes": {"enum": [30, 45, 60, 90]},
+        "when": {"enum": ["propose", "heavy_days", "working_days", "off"]},
+        "start": {"type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"}
+      }
+    }
+  }
+}
